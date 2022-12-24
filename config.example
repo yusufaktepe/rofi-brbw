@@ -1,0 +1,59 @@
+#!/hint/bash
+# Configuration file for rofi-bwrbw.
+# Uncomment the lines you want to override.
+
+##== Key bindings
+# Kb_TypeUsername='Alt+u'
+# Kb_TypePassword='Alt+p'
+# Kb_TypeOTP='Alt+o'
+# Kb_OpenURL='Alt+l'
+# Kb_CopyUsername='Alt+U'
+# Kb_CopyPassword='Alt+P'
+# Kb_CopyOTP='Alt+O'
+# Kb_CopyURL='Alt+L'
+# Kb_QR='Alt+q'
+# Kb_Generate='Alt+g'
+# Kb_Add='Alt+n'
+# Kb_Edit='Alt+e'
+# Kb_Remove='Alt+d'
+# Kb_View='Alt+v'
+# Kb_History='Alt+h'
+# Kb_ClearLastUsed='Alt+C'
+# Kb_Sync='Alt+s'
+# Kb_Help='F1'
+
+# EmptyUserPlaceholder=-
+
+# Clipboard=clipboard
+# QRImageViewer=xdg-open
+
+##== Type Options
+# TypeKeyDelay=0
+# TypeSleep=.2
+
+##== Prompt/Appearance
+# Prompt=' Bitwarden'
+# PromptSelectFolder=' Select folder'
+# Prefix=' '
+# PrefixLastUsed=' '
+# PrefixUser=' '
+
+##== Last used file location & max item size
+# LastUsedFile=~/.cache/rofi-rbw.cache
+# LastUsedMax=4
+
+##== Generate Options
+# PasswordLength=21
+# PasswordNoSymbols=true
+
+##== Editor to use when the script is not started from terminal
+# Editor="$TERMINAL -e nvim --noplugin -ni NONE"
+
+##== Custom Rofi command
+## E.g. increase window width by adding:
+##        -theme-str 'window {width: 60%;}'
+
+# _rofi() {
+#	rofi -dmenu -i -l 10 "$@"
+# }
+
