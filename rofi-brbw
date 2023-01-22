@@ -7,14 +7,8 @@
 #------------------------------------------------------------------------------
 # Dependencies:
 #   rofi, rbw, xdotool, xclip, sed, awk, coreutils, xdg-utils, nerd font
-#
-# Vault Prerequisites:
-#   - All entries must belong to a folder.
-#   - Entry name can not contain spaces.
-#
 # TODO:
-#   - Fix the issues mentioned above.
-#   - Find a better way to store last used items.
+#   - Error handling/notifications
 #------------------------------------------------------------------------------
 
 # Key bindings
@@ -118,14 +112,14 @@ parse_vault() {
 
 	mapfile -t Entries < <( {
 			tac $LastUsedFile
-			rbw list --fields=id,folder,name,user | sort -d -t $'\t' -k 2
+			rbw list --fields=folder,name,id,user | sed 's|^\t|.&|' | sort
 		} | awk '!x[$0]++') # uniq
 
 	i=0
-	while IFS=$'\t' read -r I F N U; do
-		ID[i]=$I
+	while IFS=$'\t' read -r F N I U; do
 		Folder[i]=$F
 		Name[i]=$N
+		ID[i]=$I
 		User[i]=${U:-$EmptyUserPlaceholder}
 		((i++))
 	done < <(printf '%s\n' "${Entries[@]}")
@@ -163,7 +157,7 @@ rbw_add() {
 }
 
 rbw_rm() {
-	Confirm=$(printf 'Yes\nNo' | _rofi -no-custom -p "Remove '${1%/}'?" -u 0)
+	Confirm=$(printf 'Yes\nNo' | _rofi -no-custom -p "Remove '$SelFolderAndName'?" -u 0)
 	[ "$Confirm" = Yes ] && {
 		rbw remove "$UUID"
 		sed -i "/^$LastUsed$/d" $LastUsedFile
@@ -173,7 +167,7 @@ rbw_rm() {
 rbw_get() {
 	[ "$1" = history ] && { local Cmd=history; shift ;}
 	Selected=$(
-		_rofi -p "$FolderAndName" -mesg "Enter: Copy field to clipboard" <<-EOF
+		_rofi -p "$SelFolderAndName" -mesg "Enter: Copy field to clipboard" <<-EOF
 			⮜ Return
 			$(rbw ${Cmd:-get --full} "$1")
 		EOF
@@ -224,7 +218,7 @@ menu() {
 	Pass=$(
 		for ((i=0; i<${#ID[@]}; i++)); {
 			[ $i -lt "$LastUsedItems" ] && Prefix=$PrefixLastUsed || Prefix=$_Prefix
-			printf ' %s\t%s\n' "${Prefix}⠀${Folder[i]}/${Name[i]}" "⠀${PrefixUser}${User[i]}"
+			printf '%s\t%s\n' "${Prefix} ${Folder[i]}/${Name[i]}" "${PrefixUser}${User[i]}"
 		} | column -s $'\t' -t |
 			_rofi -format 'i:s' -p "$Prompt" \
 				-kb-custom-1 "$Kb_Help" \
@@ -251,14 +245,18 @@ menu() {
 	[ -z "$Index" ] || [ "$Index" -eq -1 ] && exit
 	UUID=${ID[$Index]}
 
-	read -r _ _ FolderAndName _ User <<< "$Pass"
-	FolderAndName=${FolderAndName:1}
-	LastUsed=$(printf '%s\t%s\t%s\t%s\n' "$UUID" "${FolderAndName%/*}" "${FolderAndName#*/}" "$User")
+	shopt -s extglob
+	SelUser=${Pass##* }
+	SelFolderAndName=${Pass%%   *}
+	SelFolderAndName=${SelFolderAndName/+([0-9]):+($Prefix|$PrefixLastUsed) }
+	SelFolder=${SelFolderAndName%%/*}
+	SelName=${SelFolderAndName#*/}
+	LastUsed=$(printf '%s\t%s\t%s\t%s\n' "$SelFolder" "$SelName" "$UUID" "$SelUser")
 
 	case $Ret in
 		10) menu_help ;;
 		11) rbw edit "$UUID" ;;
-		12) Cache=false; rbw_rm "$FolderAndName" ;;
+		12) Cache=false; rbw_rm ;;
 		13) Cache=false; rbw_gen ;;
 		14) Cache=false; rbw sync; exec $0 ;;
 		15) Cache=false; rbw_add ;;
@@ -266,15 +264,15 @@ menu() {
 		17) rbw_get "$UUID" ;;
 		18) rbw_get history "$UUID" ;;
 		19) qr_code "$UUID" ;;
-		20) U=${Pass##* }; [ -n "${U%"$EmptyUserPlaceholder"}" ] && clip <<< "$U" ;;
+		20) [ -n "${SelUser%"$EmptyUserPlaceholder"}" ] && clip <<< "$SelUser" ;;
 		21) clip <<< "$(rbw get "$UUID")" ;;
 		22) clip <<< "$(rbw code "$UUID" 2>/dev/null)" ;;
 		23) clip <<< "$(rbw get --full "$UUID" | sed '/^URI: /!d;s/.*: //')" ;;
-		24) sleep $TypeSleep; autotype "${Pass##* }" ;;
+		24) sleep $TypeSleep; autotype "$SelUser" ;;
 		25) sleep $TypeSleep; CopyOTP=true autotype "$(rbw get "$UUID")" ;;
 		26) sleep $TypeSleep; Enter=true autotype "$(rbw code "$UUID" 2>/dev/null)" ;;
 		27) setsid -f xdg-open "$(rbw get --full "$UUID" | sed '/^URI: /!d;s/.*: //')"  >/dev/null 2>&1 ;;
-		0)  sleep $TypeSleep; CopyOTP=true autotype "${Pass##* }" "$(rbw get "$UUID")" ;;
+		0)  sleep $TypeSleep; CopyOTP=true autotype "$SelUser" "$(rbw get "$UUID")" ;;
 		*)  exit $Ret ;;
 	esac
 
