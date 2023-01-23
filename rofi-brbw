@@ -43,9 +43,9 @@ TypeSleep=.2
 # Prompt/Appearance
 Prompt=' Bitwarden'
 PromptSelectFolder=' Select folder'
-Prefix=' '
-PrefixLastUsed=' '
 PrefixUser=' '
+Icon=unlock
+IconLastUsed=recently_used
 
 # Last used file location & max item size
 LastUsedFile=~/.cache/rofi-brbw.cache
@@ -121,6 +121,7 @@ parse_vault() {
 		Name[i]=$N
 		ID[i]=$I
 		User[i]=${U:-$EmptyUserPlaceholder}
+		FolderAndName[i]="$F/$N" # Used to calculate ColumnLength
 		((i++))
 	done < <(printf '%s\n' "${Entries[@]}")
 }
@@ -157,17 +158,17 @@ rbw_add() {
 }
 
 rbw_rm() {
-	Confirm=$(printf 'Yes\nNo' | _rofi -no-custom -p "Remove '$SelFolderAndName'?" -u 0)
+	Confirm=$(printf 'No\nYes' | _rofi -no-custom -p "Remove '$SelFolder/$SelName'?" -u 1)
 	[ "$Confirm" = Yes ] && {
-		rbw remove "$UUID"
-		sed -i "/^$LastUsed$/d" $LastUsedFile
+		rbw remove "$SelID"
+		sed -i "\|^$LastUsed$|d" $LastUsedFile
 	}
 }
 
 rbw_get() {
 	[ "$1" = history ] && { local Cmd=history; shift ;}
 	Selected=$(
-		_rofi -p "$SelFolderAndName" -mesg "Enter: Copy field to clipboard" <<-EOF
+		_rofi -p "$SelFolder/$SelName" -mesg "Enter: Copy field to clipboard" <<-EOF
 			⮜ Return
 			$(rbw ${Cmd:-get --full} "$1")
 		EOF
@@ -198,7 +199,7 @@ autotype() {
 		xdotool type --delay $TypeKeyDelay --clearmodifiers -- "$2"
 	}
 	${Enter:-false} && xdotool key Return
-	${CopyOTP:-false} && OTP=$(rbw code "$UUID" 2>/dev/null) && clip <<< "$OTP"
+	${CopyOTP:-false} && OTP=$(rbw code "$SelID" 2>/dev/null) && clip <<< "$OTP"
 
 	xset r "$XRepeatStatus"
 }
@@ -206,21 +207,23 @@ autotype() {
 cache() {
 	# shellcheck disable=SC2016
 	[ "$LastUsedItems" -ge $LastUsedMax ] && sed -i -e :a -e '$q;N;'$LastUsedMax',$D;ba' $LastUsedFile
-	sed -i "/^$LastUsed$/d" $LastUsedFile
+	sed -i "\|^$LastUsed$|d" $LastUsedFile
 	printf '%s\n' "$LastUsed" >> $LastUsedFile
 }
 
 menu() {
 	parse_vault
+	ColumnLength=$(printf '%s\n' "${FolderAndName[@]}" | wc -L)
 	read -r LastUsedItems _ <<< "$(wc -l $LastUsedFile)"
-	local _Prefix=$Prefix
+	local _Icon=$Icon
 
 	Pass=$(
 		for ((i=0; i<${#ID[@]}; i++)); {
-			[ $i -lt "$LastUsedItems" ] && Prefix=$PrefixLastUsed || Prefix=$_Prefix
-			printf '%s\t%s\n' "${Prefix} ${Folder[i]}/${Name[i]}" "${PrefixUser}${User[i]}"
-		} | column -s $'\t' -t |
-			_rofi -format 'i:s' -p "$Prompt" \
+			[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
+			printf '%*s\t%b\n' "-${ColumnLength}" \
+				"${FolderAndName[i]}" \
+				"${PrefixUser}${User[i]}\0icon\x1f$Icon"
+		} | _rofi -format 'i:s' -p "$Prompt" \
 				-kb-custom-1 "$Kb_Help" \
 				-kb-custom-2 "$Kb_Edit" \
 				-kb-custom-3 "$Kb_Remove" \
@@ -243,36 +246,33 @@ menu() {
 	Ret=$?
 	Index=${Pass%%:*}
 	[ -z "$Index" ] || [ "$Index" -eq -1 ] && exit
-	UUID=${ID[$Index]}
 
-	shopt -s extglob
-	SelUser=${Pass##* }
-	SelFolderAndName=${Pass%%   *}
-	SelFolderAndName=${SelFolderAndName/+([0-9]):+($Prefix|$PrefixLastUsed) }
-	SelFolder=${SelFolderAndName%%/*}
-	SelName=${SelFolderAndName#*/}
-	LastUsed=$(printf '%s\t%s\t%s\t%s\n' "$SelFolder" "$SelName" "$UUID" "$SelUser")
+	SelFolder=${Folder[$Index]}
+	SelName=${Name[$Index]}
+	SelID=${ID[$Index]}
+	SelUser=${User[$Index]}
+	LastUsed=$(printf '%s\t%s\t%s\t%s\n' "$SelFolder" "$SelName" "$SelID" "$SelUser")
 
 	case $Ret in
 		10) menu_help ;;
-		11) rbw edit "$UUID" ;;
+		11) rbw edit "$SelID" ;;
 		12) Cache=false; rbw_rm ;;
 		13) Cache=false; rbw_gen ;;
 		14) Cache=false; rbw sync; exec $0 ;;
 		15) Cache=false; rbw_add ;;
 		16) Cache=false; printf '' > $LastUsedFile ;;
-		17) rbw_get "$UUID" ;;
-		18) rbw_get history "$UUID" ;;
-		19) qr_code "$UUID" ;;
+		17) rbw_get "$SelID" ;;
+		18) rbw_get history "$SelID" ;;
+		19) qr_code "$SelID" ;;
 		20) [ -n "${SelUser%"$EmptyUserPlaceholder"}" ] && clip <<< "$SelUser" ;;
-		21) clip <<< "$(rbw get "$UUID")" ;;
-		22) clip <<< "$(rbw code "$UUID" 2>/dev/null)" ;;
-		23) clip <<< "$(rbw get --full "$UUID" | sed '/^URI: /!d;s/.*: //')" ;;
+		21) clip <<< "$(rbw get "$SelID")" ;;
+		22) clip <<< "$(rbw code "$SelID" 2>/dev/null)" ;;
+		23) clip <<< "$(rbw get --full "$SelID" | sed '/^URI: /!d;s/.*: //')" ;;
 		24) sleep $TypeSleep; autotype "$SelUser" ;;
-		25) sleep $TypeSleep; CopyOTP=true autotype "$(rbw get "$UUID")" ;;
-		26) sleep $TypeSleep; Enter=true autotype "$(rbw code "$UUID" 2>/dev/null)" ;;
-		27) setsid -f xdg-open "$(rbw get --full "$UUID" | sed '/^URI: /!d;s/.*: //')"  >/dev/null 2>&1 ;;
-		0)  sleep $TypeSleep; CopyOTP=true autotype "$SelUser" "$(rbw get "$UUID")" ;;
+		25) sleep $TypeSleep; CopyOTP=true autotype "$(rbw get "$SelID")" ;;
+		26) sleep $TypeSleep; Enter=true autotype "$(rbw code "$SelID" 2>/dev/null)" ;;
+		27) setsid -f xdg-open "$(rbw get --full "$SelID" | sed '/^URI: /!d;s/.*: //')"  >/dev/null 2>&1 ;;
+		0)  sleep $TypeSleep; CopyOTP=true autotype "$SelUser" "$(rbw get "$SelID")" ;;
 		*)  exit $Ret ;;
 	esac
 

@@ -34,9 +34,9 @@
 ##== Prompt/Appearance
 # Prompt=' Bitwarden'
 # PromptSelectFolder=' Select folder'
-# Prefix=' '
-# PrefixLastUsed=' '
 # PrefixUser=' '
+# Icon=unlock
+# IconLastUsed=recently_used
 
 ##== Last used file location & max item size
 # LastUsedFile=~/.cache/rofi-rbw.cache
