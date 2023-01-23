@@ -133,10 +133,8 @@ rbw_gen() {
 }
 
 rbw_add() {
-	coproc rbw_gen
-
-	SelectedFolder=$(printf '%s\n' "${Folder[@]}" | sort -u | _rofi -p "$PromptSelectFolder")
-	[ -n "$SelectedFolder" ] && AddOpts+=(--folder "$SelectedFolder") || exit
+	AddFolder=$(printf '%s\n' "${Folder[@]}" | sort -u | _rofi -p "$PromptSelectFolder") || exit
+	[ -n "$AddFolder" ] && AddOpts+=(--folder "$AddFolder")
 
 	TmpFile=$(mktemp "/tmp/$Script.XXXX")
 	printf '%s \n%s \n%s' "Passname:" "Username:" "URI: https://" > "$TmpFile"
@@ -154,6 +152,7 @@ rbw_add() {
 	rm -f "$TmpFile"
 	[ -z "$ItemName" ] && exit
 
+	coproc rbw_gen
 	rbw add "${AddOpts[@]}" --uri "$ItemURI" "$ItemName" -- "$ItemUser"
 }
 
