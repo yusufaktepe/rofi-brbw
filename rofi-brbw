@@ -46,6 +46,8 @@ PromptSelectFolder=' Select folder'
 PrefixUser=' '
 Icon=unlock
 IconLastUsed=recently_used
+NoFolder=false
+NoIcons=false
 
 # Last used file location & max item size
 LastUsedFile=~/.cache/rofi-brbw.cache
@@ -121,13 +123,13 @@ parse_vault() {
 		Name[i]=$N
 		ID[i]=$I
 		User[i]=${U:-$EmptyUserPlaceholder}
-		FolderAndName[i]="$F/$N" # Used to calculate ColumnLength
+		[ $NoFolder = false ] && FolderAndName[i]="$F/$N" || FolderAndName[i]="$N"
 		((i++))
 	done < <(printf '%s\n' "${Entries[@]}")
 }
 
 rbw_gen() {
-	${PasswordNoSymbols:-false} && GenOpts+=(--no-symbols)
+	[ $PasswordNoSymbols = true ] && GenOpts+=(--no-symbols)
 	rbw generate "${GenOpts[@]}" $PasswordLength | clip
 	notify-send -a system -i bitwarden "$Script" "Password copied to clipboard."
 }
@@ -166,6 +168,7 @@ rbw_rm() {
 
 rbw_get() {
 	[ "$1" = history ] && { local Cmd=history; shift ;}
+	# shellcheck disable=SC2086
 	Selected=$(
 		_rofi -p "$SelFolder/$SelName" -mesg "Enter: Copy field to clipboard" <<-EOF
 			⮜ Return
@@ -213,15 +216,20 @@ cache() {
 menu() {
 	parse_vault
 	ColumnLength=$(printf '%s\n' "${FolderAndName[@]}" | wc -L)
-	read -r LastUsedItems _ <<< "$(wc -l $LastUsedFile)"
+	LastUsedItems=$(wc -l < $LastUsedFile)
 	local _Icon=$Icon
 
 	Pass=$(
 		for ((i=0; i<${#ID[@]}; i++)); {
-			[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
-			printf '%*s\t%b\n' "-${ColumnLength}" \
+			if [ $NoIcons = false ]; then
+				[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
+			else
+				PrefixUser=; Icon=
+			fi
+			printf '%*s\t%s%b\n' "-${ColumnLength}" \
 				"${FolderAndName[i]}" \
-				"${PrefixUser}${User[i]}\0icon\x1f$Icon"
+				"${PrefixUser}${User[i]}" \
+				"${Icon:+\0icon\x1f$Icon}"
 		} | _rofi -format 'i:s' -p "$Prompt" \
 				-kb-custom-1 "$Kb_Help" \
 				-kb-custom-2 "$Kb_Edit" \

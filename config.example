@@ -37,6 +37,8 @@
 # PrefixUser=' '
 # Icon=unlock
 # IconLastUsed=recently_used
+# NoFolder=false
+# NoIcons=false
 
 ##== Last used file location & max item size
 # LastUsedFile=~/.cache/rofi-rbw.cache
