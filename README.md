@@ -22,7 +22,7 @@ Yet another Rofi frontend for Bitwarden ([rbw](https://github.com/doy/rbw)).
 - `xdg-utils`
 - `xdotool`
 - `qrencode` *(for QR code generation)*
-- `Nerd Font` *(for icons)*
+- `Nerd Font` or `Font Awesome` *(for icons)*
 
 ### Configuration
 

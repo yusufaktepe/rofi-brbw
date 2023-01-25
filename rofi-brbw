@@ -6,7 +6,7 @@
 # @license: GPL-3.0
 #------------------------------------------------------------------------------
 # Dependencies:
-#   rofi, rbw, xdotool, xclip, sed, awk, coreutils, xdg-utils, nerd font
+#   rofi, rbw, xdotool, xclip, sed, awk, coreutils, xdg-utils, nerd/awesome font
 # TODO:
 #   - Error handling/notifications
 #------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ parse_vault() {
 	[ -f "$LastUsedFile" ] || touch "$LastUsedFile"
 
 	mapfile -t Entries < <( {
-			tac $LastUsedFile
+			[ $LastUsedMax -gt 0 ] && tail -n $LastUsedMax $LastUsedFile | tac
 			rbw list --fields=folder,name,id,user | sed 's|^\t|.&|' | sort
 		} | awk '!x[$0]++') # uniq
 
@@ -207,16 +207,17 @@ autotype() {
 }
 
 cache() {
-	# shellcheck disable=SC2016
-	[ "$LastUsedItems" -ge $LastUsedMax ] && sed -i -e :a -e '$q;N;'$LastUsedMax',$D;ba' $LastUsedFile
+	[ $LastUsedMax = 0 ] && return
 	sed -i "\|^$LastUsed$|d" $LastUsedFile
 	printf '%s\n' "$LastUsed" >> $LastUsedFile
+	# shellcheck disable=SC2016
+	[ "$LastUsedItems" -ge $LastUsedMax ] && sed -i -e :a -e '$q;N;'$LastUsedMax',$D;ba' $LastUsedFile
 }
 
 menu() {
 	parse_vault
 	ColumnLength=$(printf '%s\n' "${FolderAndName[@]}" | wc -L)
-	LastUsedItems=$(wc -l < $LastUsedFile)
+	[ $LastUsedMax -gt 0 ] && LastUsedItems=$(wc -l < $LastUsedFile) || LastUsedItems=0
 	local _Icon=$Icon
 
 	Pass=$(
