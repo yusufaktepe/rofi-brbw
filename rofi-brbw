@@ -110,10 +110,13 @@ clip() {
 }
 
 parse_vault() {
-	[ -f "$LastUsedFile" ] || touch "$LastUsedFile"
+	[ $LastUsedMax -gt 0 ] && {
+		[ -f "$LastUsedFile" ] || touch "$LastUsedFile"
+		LastUsedItems=$(wc -l < $LastUsedFile)
+	} || LastUsedItems=0
 
 	mapfile -t Entries < <( {
-			[ $LastUsedMax -gt 0 ] && tail -n $LastUsedMax $LastUsedFile | tac
+			[ "$LastUsedItems" -gt 0 ] && tail -n $LastUsedMax $LastUsedFile | tac
 			rbw list --fields=folder,name,id,user | sed 's|^\t|.&|' | sort
 		} | awk '!x[$0]++') # uniq
 
@@ -214,45 +217,46 @@ cache() {
 	[ "$LastUsedItems" -ge $LastUsedMax ] && sed -i -e :a -e '$q;N;'$LastUsedMax',$D;ba' $LastUsedFile
 }
 
-menu() {
-	parse_vault
+print_list() {
 	ColumnLength=$(printf '%s\n' "${FolderAndName[@]}" | wc -L)
-	[ $LastUsedMax -gt 0 ] && LastUsedItems=$(wc -l < $LastUsedFile) || LastUsedItems=0
 	local _Icon=$Icon
 
-	Pass=$(
-		for ((i=0; i<${#ID[@]}; i++)); {
-			if [ $NoIcons = false ]; then
-				[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
-			else
-				PrefixUser=; Icon=
-			fi
-			printf '%*s\t%s%b\n' "-${ColumnLength}" \
-				"${FolderAndName[i]}" \
-				"${PrefixUser}${User[i]}" \
-				"${Icon:+\0icon\x1f$Icon}"
-		} | _rofi -format 'i:s' -p "$Prompt" \
-				-kb-custom-1 "$Kb_Help" \
-				-kb-custom-2 "$Kb_Edit" \
-				-kb-custom-3 "$Kb_Remove" \
-				-kb-custom-4 "$Kb_Generate" \
-				-kb-custom-5 "$Kb_Sync" \
-				-kb-custom-6 "$Kb_Add" \
-				-kb-custom-7 "$Kb_ClearLastUsed" \
-				-kb-custom-8 "$Kb_View" \
-				-kb-custom-9 "$Kb_History" \
-				-kb-custom-10 "$Kb_QR" \
-				-kb-custom-11 "$Kb_CopyUsername" \
-				-kb-custom-12 "$Kb_CopyPassword" \
-				-kb-custom-13 "$Kb_CopyOTP" \
-				-kb-custom-14 "$Kb_CopyURL" \
-				-kb-custom-15 "$Kb_TypeUsername" \
-				-kb-custom-16 "$Kb_TypePassword" \
-				-kb-custom-17 "$Kb_TypeOTP" \
-				-kb-custom-18 "$Kb_OpenURL"
+	for ((i=0; i<${#ID[@]}; i++)); {
+		if [ $NoIcons = false ]; then
+			[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
+		else
+			PrefixUser=; Icon=
+		fi
+		printf '%*s\t%s%b\n' "-${ColumnLength}" "${FolderAndName[i]}" \
+			"${PrefixUser}${User[i]}" "${Icon:+\0icon\x1f$Icon}"
+	}
+}
+
+menu() {
+	parse_vault
+
+	Index=$(
+		print_list | _rofi -format i -p "$Prompt" \
+			-kb-custom-1 "$Kb_Help" \
+			-kb-custom-2 "$Kb_Edit" \
+			-kb-custom-3 "$Kb_Remove" \
+			-kb-custom-4 "$Kb_Generate" \
+			-kb-custom-5 "$Kb_Sync" \
+			-kb-custom-6 "$Kb_Add" \
+			-kb-custom-7 "$Kb_ClearLastUsed" \
+			-kb-custom-8 "$Kb_View" \
+			-kb-custom-9 "$Kb_History" \
+			-kb-custom-10 "$Kb_QR" \
+			-kb-custom-11 "$Kb_CopyUsername" \
+			-kb-custom-12 "$Kb_CopyPassword" \
+			-kb-custom-13 "$Kb_CopyOTP" \
+			-kb-custom-14 "$Kb_CopyURL" \
+			-kb-custom-15 "$Kb_TypeUsername" \
+			-kb-custom-16 "$Kb_TypePassword" \
+			-kb-custom-17 "$Kb_TypeOTP" \
+			-kb-custom-18 "$Kb_OpenURL"
 	)
 	Ret=$?
-	Index=${Pass%%:*}
 	[ -z "$Index" ] || [ "$Index" -eq -1 ] && exit
 
 	SelFolder=${Folder[$Index]}
@@ -275,11 +279,11 @@ menu() {
 		20) [ -n "${SelUser%"$EmptyUserPlaceholder"}" ] && clip <<< "$SelUser" ;;
 		21) clip <<< "$(rbw get "$SelID")" ;;
 		22) clip <<< "$(rbw code "$SelID" 2>/dev/null)" ;;
-		23) clip <<< "$(rbw get --full "$SelID" | sed '/^URI: /!d;s/.*: //')" ;;
+		23) clip <<< "$(rbw get --full "$SelID" | awk '/^URI:/{print $2; exit}')" ;;
 		24) sleep $TypeSleep; autotype "$SelUser" ;;
 		25) sleep $TypeSleep; CopyOTP=true autotype "$(rbw get "$SelID")" ;;
 		26) sleep $TypeSleep; Enter=true autotype "$(rbw code "$SelID" 2>/dev/null)" ;;
-		27) setsid -f xdg-open "$(rbw get --full "$SelID" | sed '/^URI: /!d;s/.*: //')"  >/dev/null 2>&1 ;;
+		27) setsid -f xdg-open "$(rbw get --full "$SelID" | awk '/^URI:/{print $2; exit}')" >/dev/null 2>&1 ;;
 		0)  sleep $TypeSleep; CopyOTP=true autotype "$SelUser" "$(rbw get "$SelID")" ;;
 		*)  exit $Ret ;;
 	esac
