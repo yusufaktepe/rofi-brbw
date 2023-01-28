@@ -138,6 +138,7 @@ rbw_gen() {
 }
 
 rbw_add() {
+	shopt -s extglob
 	AddFolder=$(printf '%s\n' "${Folder[@]}" | sort -u | _rofi -p "$PromptSelectFolder") || exit
 	[ -n "$AddFolder" ] && AddOpts+=(--folder "$AddFolder")
 
@@ -150,9 +151,9 @@ rbw_add() {
 	fi
 
 	mapfile -t NewItem <<< "$(< "$TmpFile")"
-	IFS=': ' read -r _ ItemName <<< "${NewItem[0]}"
-	IFS=': ' read -r _ ItemUser <<< "${NewItem[1]}"
-	IFS=': ' read -r _ ItemURI <<< "${NewItem[2]}"
+	ItemName=${NewItem[0]/Passname:*([[:space:]])}
+	ItemUser=${NewItem[1]/Username:*([[:space:]])}
+	ItemURI=${NewItem[2]/URI:*([[:space:]])}
 
 	rm -f "$TmpFile"
 	[ -z "$ItemName" ] && exit
@@ -198,6 +199,7 @@ autotype() {
 	XRepeatStatus=$(xset q | awk '/auto repeat:/ {print $3; exit}')
 	xset r off
 
+	xdotool keyup Shift_L Shift_R Alt_L Alt_R
 	xdotool type --delay $TypeKeyDelay --clearmodifiers -- "$1"
 	[ -n "$2" ] && {
 		xdotool key Tab
