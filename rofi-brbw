@@ -7,8 +7,6 @@
 #------------------------------------------------------------------------------
 # Dependencies:
 #   rofi, rbw, xdotool, xclip, sed, awk, coreutils, xdg-utils, nerd/awesome font
-# TODO:
-#   - Error handling/notifications
 #------------------------------------------------------------------------------
 
 # Key bindings
@@ -35,6 +33,7 @@ EmptyUserPlaceholder=-
 
 Clipboard=both
 QRImageViewer=xdg-open
+Notify=true
 
 # Type Options
 TypeKeyDelay=0
@@ -54,12 +53,12 @@ LastUsedFile=~/.cache/rofi-brbw.cache
 LastUsedMax=4
 
 # Generate Options
-PasswordLength=21
-PasswordNoSymbols=true
+PasswordLength=17
+PasswordNoSymbols=false
 
 # Editor to use when the script is not started from terminal
 # shellcheck disable=SC2153
-Editor="$TERMINAL -e nvim --noplugin -ni NONE"
+Editor="$TERMINAL -e nvim -ni NONE"
 [ -t 2 ] || export VISUAL=$Editor
 
 _rofi() {
@@ -109,6 +108,11 @@ clip() {
 	esac
 }
 
+notify() {
+	[ $Notify = true ] || return 0
+	notify-send -a rofi-brbw -i bitwarden "$Script" "$1"
+}
+
 parse_vault() {
 	[ $LastUsedMax -gt 0 ] && {
 		[ -f "$LastUsedFile" ] || touch "$LastUsedFile"
@@ -134,7 +138,7 @@ parse_vault() {
 rbw_gen() {
 	[ $PasswordNoSymbols = true ] && GenOpts+=(--no-symbols)
 	rbw generate "${GenOpts[@]}" $PasswordLength | clip
-	notify-send -a system -i bitwarden "$Script" "Password copied to clipboard."
+	notify "Password copied to clipboard."
 }
 
 rbw_add() {
@@ -156,16 +160,20 @@ rbw_add() {
 	ItemURI=${NewItem[2]/URI:*([[:space:]])}
 
 	rm -f "$TmpFile"
-	[ -z "$ItemName" ] && exit
+	[ -z "$ItemName" ] && { notify "Password name can not be empty!"; exit 1 ;}
 
 	coproc rbw_gen
-	rbw add "${AddOpts[@]}" --uri "$ItemURI" "$ItemName" -- "$ItemUser"
+	rbw add "${AddOpts[@]}" --uri "$ItemURI" "$ItemName" -- "$ItemUser" 2>/dev/null ||
+		{ notify "Failed to add password.\nNetwork error?"; exit 1 ;}
 }
 
 rbw_rm() {
 	Confirm=$(printf 'No\nYes' | _rofi -no-custom -p "Remove '$SelFolder/$SelName'?" -u 1)
 	[ "$Confirm" = Yes ] && {
-		rbw remove "$SelID"
+		rbw remove "$SelID" || {
+			notify "Failed to remove password.\nNetwork error?"
+			exit 1
+		}
 		sed -i "\|^$LastUsed$|d" $LastUsedFile
 	}
 }
@@ -227,7 +235,7 @@ print_list() {
 		if [ $NoIcons = false ]; then
 			[ $i -lt "$LastUsedItems" ] && Icon=$IconLastUsed || Icon=$_Icon
 		else
-			PrefixUser=; Icon=
+			PrefixUser=''; Icon=''
 		fi
 		printf '%*s\t%s%b\n' "-${ColumnLength}" "${FolderAndName[i]}" \
 			"${PrefixUser}${User[i]}" "${Icon:+\0icon\x1f$Icon}"
@@ -269,7 +277,7 @@ menu() {
 
 	case $Ret in
 		10) menu_help ;;
-		11) rbw edit "$SelID" ;;
+		11) rbw edit "$SelID" 2>/dev/null || notify "Failed to edit password!\nNetwork error?" ;;
 		12) Cache=false; rbw_rm ;;
 		13) Cache=false; rbw_gen ;;
 		14) Cache=false; rbw sync; exec $0 ;;

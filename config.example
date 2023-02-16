@@ -26,6 +26,7 @@
 
 # Clipboard=clipboard
 # QRImageViewer=xdg-open
+# Notify=true
 
 ##== Type Options
 # TypeKeyDelay=0
@@ -49,7 +50,7 @@
 # PasswordNoSymbols=true
 
 ##== Editor to use when the script is not started from terminal
-# Editor="$TERMINAL -e nvim --noplugin -ni NONE"
+# Editor="$TERMINAL -e nvim -ni NONE"
 
 ##== Custom Rofi command
 ## E.g. increase window width by adding:
