@@ -113,6 +113,23 @@ notify() {
 	notify-send -a rofi-brbw -i bitwarden "$Script" "$1"
 }
 
+unique() {
+	IFS_Old=$IFS
+	IFS=$'\n'
+	set --
+
+	while IFS= read -r Line; do
+		case $IFS$*$IFS in
+			*"$IFS$Line$IFS"*) ;; # Seen
+			*) set -- "$@" "$Line" ;; # Unique
+		esac
+	done
+
+	printf '%s\n' "$@"
+
+	IFS=$IFS_Old
+}
+
 parse_vault() {
 	[ $LastUsedMax -gt 0 ] && {
 		[ -f "$LastUsedFile" ] || touch "$LastUsedFile"
@@ -122,7 +139,7 @@ parse_vault() {
 	mapfile -t Entries < <( {
 			[ "$LastUsedItems" -gt 0 ] && tail -n $LastUsedMax $LastUsedFile | tac
 			rbw list --fields=folder,name,id,user | sed 's|^\t|.&|' | sort
-		} | awk '!x[$0]++') # uniq
+		} | unique)
 
 	i=0
 	while IFS=$'\t' read -r F N I U; do
